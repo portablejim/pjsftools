@@ -1,4 +1,4 @@
-package cmd_getperms
+package main
 
 import (
 	"flag"

@@ -3,12 +3,10 @@ package main
 import (
 	"fmt"
 	"os"
-
-	"github.com/portablejim/pjsftools/cmd_getperms"
 )
 
 var commands = map[string]func([]string){
-	"getperms": cmd_getperms.GetPerms,
+	"getperms": GetPerms,
 }
 
 func main() {

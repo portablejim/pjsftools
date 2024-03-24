@@ -5,8 +5,8 @@ import (
 	"os"
 )
 
-var commands = map[string]func([]string){
-	"getperms": GetPerms,
+var commands = map[string]func([]string) error{
+	"getperms": func(args []string) error { return GetPerms(args, Command{}, Command{}) },
 }
 
 func main() {

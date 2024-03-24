@@ -1,10 +1,8 @@
 package main
 
 import (
-	"encoding/json"
 	"flag"
 	"fmt"
-	"io"
 	"os"
 	"strings"
 )
@@ -30,37 +28,10 @@ func GetPerms(args []string, runner CommandRunner, getWrapper AuthHttpGetter) er
 
 	fieldName := fs.Arg(0)
 
-	queryStringRaw := fmt.Sprintf(`SELECT Id, ParentId, Parent.Profile.Name, Field, PermissionsEdit, PermissionsRead
-		FROM FieldPermissions
-		WHERE Parent.Type = 'Profile'
-		AND Field='%s'
-		ORDER BY Parent.Profile.Name`, fieldName)
-	queryString := tidyForQueryParam(queryStringRaw)
-	targetUrl := fmt.Sprintf("%s/services/data/v%s/query?q=%s", sfInfo.instanceUrl, sfInfo.version, queryString)
-	fetchResp, fetchRespErr := getWrapper.AuthedGet(targetUrl, sfInfo.accessToken)
-	if fetchRespErr != nil {
-		panic("Error executing GET Request")
+	currentPermsList, getErr := getFieldPermsForField(fieldName, sfInfo, getWrapper)
+	if getErr != nil {
+		return fmt.Errorf("error getting perms: %w", getErr)
 	}
-
-	fetchRespStr, fetchRespStrErr := io.ReadAll(fetchResp.Body)
-	if fetchRespStrErr != nil {
-		panic("Error reading GET Request")
-	}
-	var currentPermsResult sfQueryResult[sfFieldPermissons]
-	currentPermsParseErr := json.Unmarshal(fetchRespStr, &currentPermsResult)
-	if currentPermsParseErr != nil {
-		return fmt.Errorf("error parsing GET Request. Error: %w", currentPermsParseErr)
-	}
-
-	if !currentPermsResult.Done {
-		panic("Incomplete result set. Extra result parsing not implemented.")
-	}
-	if len(currentPermsResult.Records) == 0 {
-		os.Stderr.WriteString("No records")
-		return nil
-	}
-
-	currentPermsList := currentPermsResult.Records
 
 	outputPerms := []string{}
 	for _, p := range currentPermsList {

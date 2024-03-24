@@ -2,6 +2,8 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
+	"io"
 	"net/url"
 	"strings"
 )
@@ -77,4 +79,34 @@ func tidyForQueryParam(inputString string) string {
 	}
 
 	return url.QueryEscape(outputStr[1:])
+}
+
+func getFieldPermsForField(fieldName string, sfInfo TokenInfo, getWrapper AuthHttpGetter) ([]sfFieldPermissons, error) {
+	queryStringRaw := fmt.Sprintf(`SELECT Id, ParentId, Parent.Profile.Name, Field, PermissionsEdit, PermissionsRead
+		FROM FieldPermissions
+		WHERE Parent.Type = 'Profile'
+		AND Field='%s'
+		ORDER BY Parent.Profile.Name`, fieldName)
+	queryString := tidyForQueryParam(queryStringRaw)
+	targetUrl := fmt.Sprintf("%s/services/data/v%s/query?q=%s", sfInfo.instanceUrl, sfInfo.version, queryString)
+	fetchResp, fetchRespErr := getWrapper.AuthedGet(targetUrl, sfInfo.accessToken)
+	if fetchRespErr != nil {
+		return []sfFieldPermissons{}, fmt.Errorf("error executing GET Request")
+	}
+
+	fetchRespStr, fetchRespStrErr := io.ReadAll(fetchResp.Body)
+	if fetchRespStrErr != nil {
+		return []sfFieldPermissons{}, fmt.Errorf("error reading GET Request")
+	}
+	var currentPermsResult sfQueryResult[sfFieldPermissons]
+	currentPermsParseErr := json.Unmarshal(fetchRespStr, &currentPermsResult)
+	if currentPermsParseErr != nil {
+		return []sfFieldPermissons{}, fmt.Errorf("error parsing GET Request. Error: %w", currentPermsParseErr)
+	}
+
+	if !currentPermsResult.Done {
+		return []sfFieldPermissons{}, fmt.Errorf("incomplete result set. Extra result parsing not implemented")
+	}
+
+	return currentPermsResult.Records, nil
 }

@@ -3,6 +3,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	"net/url"
 	"os"
 	"strings"
 )
@@ -10,6 +11,7 @@ import (
 func GetPerms(args []string, runner CommandRunner, getWrapper AuthHttpGetter) error {
 
 	fs := flag.NewFlagSet("getperms", flag.ExitOnError)
+	useNames := fs.Bool("names", false, "use Profile Names instead of Ids")
 	orgName := fs.String("org", "", "sf org to use")
 	fs.Parse(args)
 
@@ -35,7 +37,7 @@ func GetPerms(args []string, runner CommandRunner, getWrapper AuthHttpGetter) er
 
 	outputPerms := []string{}
 	for _, p := range currentPermsList {
-		outputPerms = append(outputPerms, generatePermString(p))
+		outputPerms = append(outputPerms, generatePermString(p, *useNames))
 	}
 
 	outputPermsString := strings.Join(outputPerms, ";")
@@ -45,8 +47,11 @@ func GetPerms(args []string, runner CommandRunner, getWrapper AuthHttpGetter) er
 	return nil
 }
 
-func generatePermString(p sfFieldPermissons) string {
+func generatePermString(p sfFieldPermissons, useNames bool) string {
 	pKey := p.ParentId
+	if useNames {
+		pKey = url.QueryEscape(p.Parent.Profile.Name)
+	}
 
 	permString := ""
 	if p.PermissionsRead {

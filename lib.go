@@ -37,11 +37,12 @@ type sfQueryResult[s any] struct {
 }
 
 type sfFieldPermissons struct {
-	Id       string
-	ParentId string
-	Field    string
-	//Parent map[string]map[string]string
-	Parent struct{ Profile struct{ Name string } }
+	Id              string
+	ParentId        string
+	Parent          struct{ Profile struct{ Name string } }
+	Field           string
+	PermissionsRead bool
+	PermissionsEdit bool
 }
 
 func getAccessToken(orgName string, runner CommandRunner) (TokenInfo, error) {

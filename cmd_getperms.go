@@ -16,9 +16,9 @@ func GetPerms(args []string, runner CommandRunner, getWrapper AuthHttpGetter) er
 	fs.Parse(args)
 
 	if len(*orgName) == 0 {
-		os.Stderr.WriteString("Using default org\n")
+		os.Stderr.WriteString("getperms using default org\n")
 	} else {
-		os.Stderr.WriteString("Using org " + *orgName + "\n")
+		os.Stderr.WriteString("getperms using org " + *orgName + "\n")
 	}
 	sfInfo, tokenError := getAccessToken(*orgName, runner)
 	if tokenError != nil {
@@ -29,26 +29,20 @@ func GetPerms(args []string, runner CommandRunner, getWrapper AuthHttpGetter) er
 	}
 
 	fieldName := fs.Arg(0)
-	fmt.Fprintf(os.Stderr, "Using fieldname: %s\n", fieldName)
 
-	queryStringRaw := fmt.Sprintf(`SELECT Id, ParentId, Parent.Profile.Name, Field
+	queryStringRaw := fmt.Sprintf(`SELECT Id, ParentId, Parent.Profile.Name, Field, PermissionsEdit, PermissionsRead
 		FROM FieldPermissions
 		WHERE Parent.Type = 'Profile'
 		AND Field='%s'
 		ORDER BY Parent.Profile.Name`, fieldName)
 	queryString := tidyForQueryParam(queryStringRaw)
 	targetUrl := fmt.Sprintf("%s/services/data/v%s/query?q=%s", sfInfo.instanceUrl, sfInfo.version, queryString)
-	fmt.Fprintf(os.Stderr, "Using url: %s\n", targetUrl)
 	fetchResp, fetchRespErr := getWrapper.AuthedGet(targetUrl, sfInfo.accessToken)
 	if fetchRespErr != nil {
-		panic("Error executing GET Request: ")
+		panic("Error executing GET Request")
 	}
 
-	os.Stderr.WriteString(sfInfo.instanceUrl)
-	os.Stderr.WriteString(fetchResp.Status)
-
 	fetchRespStr, fetchRespStrErr := io.ReadAll(fetchResp.Body)
-	//fmt.Println(string(fetchRespStr))
 	if fetchRespStrErr != nil {
 		panic("Error reading GET Request")
 	}
@@ -70,9 +64,7 @@ func GetPerms(args []string, runner CommandRunner, getWrapper AuthHttpGetter) er
 
 	outputPerms := []string{}
 	for _, p := range currentPermsList {
-		pKey := p.ParentId
-		permString := "N"
-		outputPerms = append(outputPerms, fmt.Sprintf("%s:%s", pKey, permString))
+		outputPerms = append(outputPerms, generatePermString(p))
 	}
 
 	outputPermsString := strings.Join(outputPerms, ";")
@@ -80,4 +72,21 @@ func GetPerms(args []string, runner CommandRunner, getWrapper AuthHttpGetter) er
 	fmt.Println(outputPermsString)
 
 	return nil
+}
+
+func generatePermString(p sfFieldPermissons) string {
+	pKey := p.ParentId
+
+	permString := ""
+	if p.PermissionsRead {
+		permString += "R"
+	}
+	if p.PermissionsEdit {
+		permString += "W"
+	}
+	if len(permString) == 0 {
+		permString = "N"
+	}
+
+	return fmt.Sprintf("%s:%s", pKey, permString)
 }

@@ -8,7 +8,7 @@ import (
 	"strings"
 )
 
-func SetPerms(args []string, runner CommandRunner, getWrapper AuthHttpGetter, patchWrapper AuthHttpPatcher) error {
+func SetPerms(args []string, runner CommandRunner, getWrapper AuthHttpGetter, patchWrapper AuthHttpPatcher, postWrapper AuthHttpPoster) error {
 
 	fs := flag.NewFlagSet("setperms", flag.ExitOnError)
 	useNames := fs.Bool("names", false, "use Profile Names instead of Ids")
@@ -19,8 +19,6 @@ func SetPerms(args []string, runner CommandRunner, getWrapper AuthHttpGetter, pa
 	if len(otherArgs) != 2 {
 		return fmt.Errorf("expected exactly 2 args (field and perms). Got %v", otherArgs)
 	}
-
-	fmt.Println(*useNames)
 
 	if len(*orgName) == 0 {
 		os.Stderr.WriteString("setperms using default org\n")
@@ -36,6 +34,10 @@ func SetPerms(args []string, runner CommandRunner, getWrapper AuthHttpGetter, pa
 	}
 
 	fieldName := fs.Arg(0)
+	fieldNameParts := strings.Split(fieldName, ".")
+	if len(fieldNameParts) < 2 {
+		return fmt.Errorf("your field name requires a dot. e.g. Sobject.FieldName")
+	}
 
 	currentPermsList, getErr := getFieldPermsForField(fieldName, sfInfo, getWrapper)
 	if getErr != nil {
@@ -109,7 +111,50 @@ func SetPerms(args []string, runner CommandRunner, getWrapper AuthHttpGetter, pa
 
 	fmt.Fprintf(os.Stderr, "%d permissions updated\n", len(permsUpdated))
 
-	fmt.Printf("Perms: %v\n", newPermList)
+	// Has perms to add.
+	if len(permMap) > 0 {
+		fmt.Fprintf(os.Stderr, "Need to insert %v perm records\n", len(permMap))
+
+		// Get profile names.
+		profilesByName := map[string]string{}
+		if *useNames {
+			fmt.Fprintln(os.Stderr, "Need to get profile names.")
+
+			permSetList, permSetErr := getProfilePerms(sfInfo, getWrapper)
+			if permSetErr != nil {
+				return fmt.Errorf("error getting profiles: %w", permSetErr)
+			}
+			for i := 0; i < len(permSetList); i++ {
+				profilesByName[permSetList[i].Profile.Name] = permSetList[i].Id
+			}
+		}
+
+		// Build perms to create.
+		permsToCreate := []sfCreateFieldPermissions{}
+		for permKey, permValue := range permMap {
+			permId := permKey
+			if *useNames {
+				temPermId, ok := profilesByName[permKey]
+				if ok {
+					permId = temPermId
+				}
+			}
+			newPerms := sfCreateFieldPermissions{ParentId: permId, SobjectType: fieldNameParts[0], Field: fieldName, PermissionsRead: false, PermissionsEdit: false}
+			if permValue == "RW" || permValue == "R" {
+				newPerms.PermissionsRead = true
+			}
+			if permValue == "RW" {
+				newPerms.PermissionsEdit = true
+			}
+			permsToCreate = append(permsToCreate, newPerms)
+		}
+		_, createResponseErr := createFieldPermsForField(permsToCreate, sfInfo, postWrapper)
+		if createResponseErr != nil {
+			return fmt.Errorf("error setting new perms: %w", createResponseErr)
+		}
+
+		fmt.Fprintf(os.Stderr, "%d permissions created\n", len(permsToCreate))
+	}
 
 	return nil
 }

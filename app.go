@@ -37,6 +37,25 @@ type AuthHttpPatcher interface {
 }
 
 func (c Command) AuthedPatch(url string, bodyStr string, contentType string, accessToken string) (http.Response, error) {
+	fetchReq, fetchReqErr := http.NewRequest("PATCH", url, strings.NewReader(bodyStr))
+	if fetchReqErr != nil {
+		return http.Response{}, fetchReqErr
+	}
+	if len(contentType) == 0 {
+		contentType = "application/json"
+	}
+	fetchReq.Header.Add("Authorization", "Bearer "+accessToken)
+	fetchReq.Header.Add("Content-Type", contentType)
+	fetchResp, fetchRespErr := http.DefaultClient.Do(fetchReq)
+
+	return *fetchResp, fetchRespErr
+}
+
+type AuthHttpPoster interface {
+	AuthedPost(url string, bodyStr string, contentType string, accessToken string) (http.Response, error)
+}
+
+func (c Command) AuthedPost(url string, bodyStr string, contentType string, accessToken string) (http.Response, error) {
 	fetchReq, fetchReqErr := http.NewRequest("POST", url, strings.NewReader(bodyStr))
 	if fetchReqErr != nil {
 		return http.Response{}, fetchReqErr

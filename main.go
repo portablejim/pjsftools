@@ -7,7 +7,7 @@ import (
 
 var commands = map[string]func([]string) error{
 	"getperms": func(args []string) error { return GetPerms(args, Command{}, Command{}) },
-	"setperms": func(args []string) error { return SetPerms(args, Command{}, Command{}, Command{}) },
+	"setperms": func(args []string) error { return SetPerms(args, Command{}, Command{}, Command{}, Command{}) },
 }
 
 func main() {

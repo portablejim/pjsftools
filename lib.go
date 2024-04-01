@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io"
 	"net/url"
-	"os"
 	"strings"
 )
 
@@ -40,8 +39,9 @@ type sfQueryResult[s any] struct {
 }
 
 type sfPermissionSet struct {
-	Id   string
-	Name string
+	Id      string
+	Profile struct{ Name string }
+	Type    string
 }
 
 type sfFieldPermissons struct {
@@ -141,9 +141,37 @@ func getFieldPermsForField(fieldName string, sfInfo TokenInfo, getWrapper AuthHt
 	return currentPermsResult.Records, nil
 }
 
+func getProfilePerms(sfInfo TokenInfo, getWrapper AuthHttpGetter) ([]sfPermissionSet, error) {
+	queryStringRaw := `SELECT Id, Profile.Name, Type
+		FROM PermissionSet
+		WHERE Type = 'Profile'
+		ORDER BY Profile.Name`
+	queryString := tidyForQueryParam(queryStringRaw)
+	targetUrl := fmt.Sprintf("%s/services/data/v%s/query?q=%s", sfInfo.instanceUrl, sfInfo.version, queryString)
+	fetchResp, fetchRespErr := getWrapper.AuthedGet(targetUrl, sfInfo.accessToken)
+	if fetchRespErr != nil {
+		return []sfPermissionSet{}, fmt.Errorf("error executing GET Request")
+	}
+
+	fetchRespStr, fetchRespStrErr := io.ReadAll(fetchResp.Body)
+	if fetchRespStrErr != nil {
+		return []sfPermissionSet{}, fmt.Errorf("error reading GET Request")
+	}
+	var currentPermsResult sfQueryResult[sfPermissionSet]
+	currentPermsParseErr := json.Unmarshal(fetchRespStr, &currentPermsResult)
+	if currentPermsParseErr != nil {
+		return []sfPermissionSet{}, fmt.Errorf("error parsing GET Request. Error: %w", currentPermsParseErr)
+	}
+
+	if !currentPermsResult.Done {
+		return []sfPermissionSet{}, fmt.Errorf("incomplete result set. Extra result parsing not implemented")
+	}
+
+	return currentPermsResult.Records, nil
+}
+
 func setFieldPermsForField(newRecords []sfUpdateFieldPermissions, sfInfo TokenInfo, patchWrapper AuthHttpPatcher) ([]sfUpdateFieldPermissions, error) {
 	targetUrl := fmt.Sprintf("%s/services/data/v%s/composite/sobjects/", sfInfo.instanceUrl, sfInfo.version)
-	fmt.Fprintln(os.Stderr, targetUrl)
 
 	for i := 0; i < len(newRecords); i++ {
 		newRecords[i].Attributes = sfAttributes{Type: "FieldPermissions"}
@@ -155,7 +183,33 @@ func setFieldPermsForField(newRecords []sfUpdateFieldPermissions, sfInfo TokenIn
 	if updateJsonErr != nil {
 		return []sfUpdateFieldPermissions{}, fmt.Errorf("error turning data to JSON")
 	}
-	fmt.Fprintf(os.Stderr, "updateJson: %s\n", updateJson)
+
+	resp, err := patchWrapper.AuthedPatch(targetUrl, string(updateJson), "application/json", sfInfo.accessToken)
+	if resp.StatusCode != 200 || err != nil {
+		return []sfUpdateFieldPermissions{}, fmt.Errorf("error updating data: %d | %v", resp.StatusCode, err)
+	}
+
+	return newRecords, nil
+}
+
+func createFieldPermsForField(newRecords []sfCreateFieldPermissions, sfInfo TokenInfo, postWrapper AuthHttpPoster) ([]sfCreateFieldPermissions, error) {
+	targetUrl := fmt.Sprintf("%s/services/data/v%s/composite/sobjects", sfInfo.instanceUrl, sfInfo.version)
+
+	for i := 0; i < len(newRecords); i++ {
+		newRecords[i].Attributes = sfAttributes{Type: "FieldPermissions"}
+	}
+
+	updateData := sfUpdateCollection[sfCreateFieldPermissions]{Records: newRecords}
+
+	updateJson, updateJsonErr := json.Marshal(updateData)
+	if updateJsonErr != nil {
+		return []sfCreateFieldPermissions{}, fmt.Errorf("error turning data to JSON")
+	}
+
+	resp, err := postWrapper.AuthedPost(targetUrl, string(updateJson), "application/json", sfInfo.accessToken)
+	if resp.StatusCode != 200 || err != nil {
+		return []sfCreateFieldPermissions{}, fmt.Errorf("error creating data: %d | %v", resp.StatusCode, err)
+	}
 
 	return newRecords, nil
 }

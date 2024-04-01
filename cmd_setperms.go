@@ -16,8 +16,20 @@ func SetPerms(args []string, runner CommandRunner, getWrapper AuthHttpGetter, pa
 	fs.Parse(args)
 
 	otherArgs := fs.Args()
+	if len(otherArgs) == 1 || (len(otherArgs) == 2 && otherArgs[1] == "-") {
+		if len(otherArgs) == 2 {
+			otherArgs = otherArgs[:1]
+		}
+		fmt.Fprintf(os.Stderr, "Reading from pipe\n")
+		var pipedParams string
+		nRead, err := fmt.Scanln(&pipedParams)
+		if nRead > 0 && err == nil {
+			pipedParams = strings.Trim(pipedParams, " \n")
+			otherArgs = append(otherArgs, pipedParams)
+		}
+	}
 	if len(otherArgs) != 2 {
-		return fmt.Errorf("expected exactly 2 args (field and perms). Got %v", otherArgs)
+		return fmt.Errorf("expected exactly 2 args (field and perms), unless perms are piped in. Got %v", otherArgs)
 	}
 
 	if len(*orgName) == 0 {
@@ -33,7 +45,7 @@ func SetPerms(args []string, runner CommandRunner, getWrapper AuthHttpGetter, pa
 		return fmt.Errorf("something is wrong. Unable to get valid info")
 	}
 
-	fieldName := fs.Arg(0)
+	fieldName := otherArgs[0]
 	fieldNameParts := strings.Split(fieldName, ".")
 	if len(fieldNameParts) < 2 {
 		return fmt.Errorf("your field name requires a dot. e.g. Sobject.FieldName")
@@ -45,7 +57,7 @@ func SetPerms(args []string, runner CommandRunner, getWrapper AuthHttpGetter, pa
 	}
 
 	// Parse field perms.
-	fieldPerms := fs.Arg(1)
+	fieldPerms := otherArgs[1]
 	permParts := strings.Split(fieldPerms, ";")
 	permMap := map[string]string{}
 

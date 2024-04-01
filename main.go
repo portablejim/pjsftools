@@ -7,6 +7,7 @@ import (
 
 var commands = map[string]func([]string) error{
 	"getperms": func(args []string) error { return GetPerms(args, Command{}, Command{}) },
+	"setperms": func(args []string) error { return SetPerms(args, Command{}, Command{}, Command{}) },
 }
 
 func main() {
@@ -19,7 +20,10 @@ func main() {
 		fmt.Println(usage())
 		os.Exit(1)
 	}
-	cmd(os.Args[2:])
+	cmdErr := cmd(os.Args[2:])
+	if cmdErr != nil {
+		os.Stderr.WriteString(cmdErr.Error() + "\n")
+	}
 }
 
 func usage() string {

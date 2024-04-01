@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net/url"
+	"os"
 	"strings"
 )
 
@@ -38,11 +39,40 @@ type sfQueryResult[s any] struct {
 	Records   []s  `json:"records"`
 }
 
+type sfPermissionSet struct {
+	Id   string
+	Name string
+}
+
 type sfFieldPermissons struct {
 	Id              string
 	ParentId        string
 	Parent          struct{ Profile struct{ Name string } }
 	Field           string
+	PermissionsRead bool
+	PermissionsEdit bool
+}
+
+type sfUpdateCollection[s any] struct {
+	Records []s `json:"records"`
+}
+
+type sfAttributes struct {
+	Type string `json:"type"`
+}
+
+type sfUpdateFieldPermissions struct {
+	Attributes      sfAttributes `json:"attributes"`
+	Id              string
+	PermissionsRead bool
+	PermissionsEdit bool
+}
+
+type sfCreateFieldPermissions struct {
+	Attributes      sfAttributes `json:"attributes"`
+	ParentId        string
+	Field           string
+	SobjectType     string
 	PermissionsRead bool
 	PermissionsEdit bool
 }
@@ -109,4 +139,23 @@ func getFieldPermsForField(fieldName string, sfInfo TokenInfo, getWrapper AuthHt
 	}
 
 	return currentPermsResult.Records, nil
+}
+
+func setFieldPermsForField(newRecords []sfUpdateFieldPermissions, sfInfo TokenInfo, patchWrapper AuthHttpPatcher) ([]sfUpdateFieldPermissions, error) {
+	targetUrl := fmt.Sprintf("%s/services/data/v%s/composite/sobjects/", sfInfo.instanceUrl, sfInfo.version)
+	fmt.Fprintln(os.Stderr, targetUrl)
+
+	for i := 0; i < len(newRecords); i++ {
+		newRecords[i].Attributes = sfAttributes{Type: "FieldPermissions"}
+	}
+
+	updateData := sfUpdateCollection[sfUpdateFieldPermissions]{Records: newRecords}
+
+	updateJson, updateJsonErr := json.Marshal(updateData)
+	if updateJsonErr != nil {
+		return []sfUpdateFieldPermissions{}, fmt.Errorf("error turning data to JSON")
+	}
+	fmt.Fprintf(os.Stderr, "updateJson: %s\n", updateJson)
+
+	return newRecords, nil
 }

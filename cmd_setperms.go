@@ -91,7 +91,7 @@ func SetPerms(args []string, runner CommandRunner, getWrapper AuthHttpGetter, pa
 		}
 		newPermStr := permMap[permKey]
 
-		if len(newPermStr) == 0 || len(currentPerm.Id) == 0 {
+		if len(newPermStr) == 0 || len(currentPerm.Id) == 0 || currentPerm.Field != fieldName {
 			continue
 		}
 

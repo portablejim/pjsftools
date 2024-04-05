@@ -37,7 +37,9 @@ func GetPerms(args []string, runner CommandRunner, getWrapper AuthHttpGetter) er
 
 	outputPerms := []string{}
 	for _, p := range currentPermsList {
-		outputPerms = append(outputPerms, generatePermString(p, *useNames))
+		if p.Field == fieldName {
+			outputPerms = append(outputPerms, generatePermString(p, *useNames))
+		}
 	}
 
 	outputPermsString := strings.Join(outputPerms, ";")

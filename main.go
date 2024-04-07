@@ -10,6 +10,8 @@ var commands = map[string]func([]string) error{
 	"setperms": func(args []string) error { return SetPerms(args, Command{}, Command{}, Command{}, Command{}) },
 }
 
+var version string = "0.1.0"
+
 func main() {
 	if len(os.Args) == 1 {
 		fmt.Println(usage())
@@ -31,5 +33,6 @@ func usage() string {
 	for k := range commands {
 		s += " - " + k + "\n"
 	}
+    s += "Version: " + version + "\n"
 	return s
 }
